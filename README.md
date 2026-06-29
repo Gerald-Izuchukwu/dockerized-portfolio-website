@@ -203,3 +203,86 @@ git push -u origin main
 | Version Control | Git / GitHub |
 
 ---
+
+
+# CI/CD Pipeline – Portfolio Deployment
+
+## Overview
+
+This project implements a fully automated CI/CD pipeline that deploys a static portfolio website — served via **Nginx** inside a **Docker container** — to an **AWS EC2** instance whenever code is pushed to the `main` branch.
+
+## How the Pipeline Works
+
+The pipeline is powered by **GitHub Actions**, using the `appleboy/ssh-action` to securely SSH into the EC2 instance from the workflow runner. Once connected, the workflow:
+
+1. Pulls the latest code from the repository
+2. Rebuilds the Docker image from the `Dockerfile`
+3. Stops and removes the old running container
+4. Starts a fresh container on port 80
+
+This ensures the live site always reflects the latest commit with **zero manual intervention**.
+
+## Pipeline Flow
+
+```
+Developer → git push (main) → GitHub Repository
+  → GitHub Actions Workflow
+    → SSH into EC2 (appleboy/ssh-action)
+      → git pull origin main
+      → docker build -t portfolio-site .
+      → docker stop/rm (old container)
+      → docker run -d -p 80:80 portfolio-site
+        → Website Live ✓
+```
+
+## Infrastructure Setup
+
+The EC2 instance was provisioned entirely via the **AWS CLI** because the AWS Management Console UI was experiencing downtime at the time of setup — a valuable exercise in managing infrastructure from the terminal. The instance was launched with the following specs:
+
+| Setting | Value |
+|---|---|
+| OS | Ubuntu 22.04 LTS |
+| Instance Type | t2.micro (free tier) |
+| Storage | 20 GB gp3 |
+| Region | us-east-1 |
+| Ports Open | 22 (SSH), 80 (HTTP) |
+
+## Secrets Configuration
+
+All sensitive connection details are stored as **GitHub Actions Secrets**, keeping credentials out of the codebase entirely.
+
+| Secret | Purpose |
+|---|---|
+| `EC2_HOST` | Public IP of the EC2 instance |
+| `EC2_USERNAME` | SSH login user (`ubuntu`) |
+| `EC2_SSH_KEY` | Private key contents for SSH authentication |
+
+## Challenges Encountered
+
+### AWS Console Downtime
+The AWS Management Console UI was unavailable during the setup window, so the entire infrastructure — Security Group creation, inbound rules, and instance launch — was handled through the AWS CLI.
+
+### Key Pair Region Mismatch
+When launching the EC2 instance in `us-east-1`, the following error occurred:
+
+```
+An error occurred (InvalidKeyPair.NotFound) when calling the RunInstances operation:
+The key pair 'ansible-controller-key' does not exist
+```
+
+The key pair existed in AWS but had been created in a **different region**. This was resolved by extracting the public key from the local `.pem` file and importing it into `us-east-1`:
+
+```bash
+ssh-keygen -y -f ~/.ssh/ansible-controller-key.pem > ~/.ssh/ansible-controller-key.pub
+
+aws ec2 import-key-pair \
+  --key-name ansible-controller-key \
+  --public-key-material fileb://~/.ssh/ansible-controller-key.pub \
+  --region us-east-1
+```
+
+After importing, the instance launched successfully.
+
+## Testing
+
+The pipeline was validated by pushing a small change to `index.html`, which triggered the GitHub Actions workflow automatically. After the workflow completed successfully, the update was confirmed live on the server's public IP.
