@@ -267,17 +267,17 @@ When launching the EC2 instance in `us-east-1`, the following error occurred:
 
 ```
 An error occurred (InvalidKeyPair.NotFound) when calling the RunInstances operation:
-The key pair 'ansible-controller-key' does not exist
+The key pair 'helix-assignment' does not exist
 ```
 
 The key pair existed in AWS but had been created in a **different region**. This was resolved by extracting the public key from the local `.pem` file and importing it into `us-east-1`:
 
 ```bash
-ssh-keygen -y -f ~/.ssh/ansible-controller-key.pem > ~/.ssh/ansible-controller-key.pub
+ssh-keygen -y -f ~/.ssh/helix-assignment.pem > ~/.ssh/helix-assignment.pub
 
 aws ec2 import-key-pair \
-  --key-name ansible-controller-key \
-  --public-key-material fileb://~/.ssh/ansible-controller-key.pub \
+  --key-name helix-assignment \
+  --public-key-material fileb://~/.ssh/helix-assignment.pub \
   --region us-east-1
 ```
 
